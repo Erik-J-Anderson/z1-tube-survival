@@ -1,0 +1,22 @@
+# Keep source/scripts portable between Windows, WSL, and Linux clusters.
+* text=auto
+
+*.c       text eol=lf
+*.cc      text eol=lf
+*.cpp     text eol=lf
+*.h       text eol=lf
+*.hh      text eol=lf
+*.hpp     text eol=lf
+*.sh      text eol=lf
+*.py      text eol=lf
+*.md      text eol=lf
+*.txt     text eol=lf
+CMakeLists.txt text eol=lf
+
+# Treat common trajectory/binary formats as binary.
+*.dcd     binary
+*.xtc     binary
+*.trr     binary
+*.png     binary
+*.pdf     binary
+*.zip     binary

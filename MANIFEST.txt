@@ -1,0 +1,34 @@
+Core source/header files:
+  Geometry_Utils.cpp
+  Geometry_Utils.hpp
+  Parallel_Segment_Survival.cpp
+  Parse_Z1_File.cpp
+  Parse_Z1_File.hpp
+  Parser_Utils.cpp
+  Parser_Utils.hpp
+  Primitive_Path_Trajectory.cpp
+  Primitive_Path_Trajectory.hpp
+  Survival_IO.cpp
+  Survival_IO.hpp
+  Trajectory_Thinning.cpp
+  Trajectory_Thinning.hpp
+  Trajectory_Time.cpp
+  Trajectory_Time.hpp
+  Tube_Survival.cpp
+  Tube_Survival.hpp
+
+Smoke tests:
+  Serial_Smoke_Test_Deforming_Box.cpp
+  tests/Affine_Correction_Smoke_Test.cpp
+  tests/Affine_Time_Origin_Smoke_Test.cpp
+  tests/Plot_Affine_Smoke_Test.py
+  run_affine_smoke_test.sh
+  run_time_origin_affine_smoke_test.sh
+
+Documentation/results:
+  README_AFFINE_UPDATE.md
+  README_CURRENT_PATCH.md
+  README_FIRST_PASSAGE_NEXT.md
+  MANIFEST.txt
+  affine_smoke_test.csv
+  affine_smoke_test.png
