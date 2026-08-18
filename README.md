@@ -12,9 +12,9 @@ For tube diameter $a$, a sampled point on the reference primitive path is compar
 
 A sample is inside the tube when
 
-$$
+```math
 d \le \frac{a}{2}.
-$$
+```
 
 This criterion is instantaneous, so a sample may leave and later re-enter.
 
@@ -22,7 +22,7 @@ This criterion is instantaneous, so a sample may leave and later re-enter.
 
 For a deforming simulation box, future primitive-path coordinates can be pulled back into the box of the time origin before distances are evaluated:
 
-$$
+```math
 \mathbf{r}_{t\rightarrow t_0}
 =
 \mathbf{o}(t_0)
@@ -31,7 +31,7 @@ H(t_0)H(t)^{-1}
 \left[
 \mathbf{r}(t)-\mathbf{o}(t)
 \right].
-$$
+```
 
 Here $\mathbf{o}(t)$ is the box origin and $H(t)$ is the box matrix.
 
@@ -49,13 +49,13 @@ Every saved intermediate frame is scanned so that an outer-boundary crossing bet
 
 The code also computes the pure absorbing survival
 
-$$
+```math
 S_{\mathrm{perm}}(t)
 =
 P\!\left[
 \max_{\tau \le t} d(\tau) < a
 \right],
-$$
+```
 
 which is the natural survival function for first-passage analysis.
 
