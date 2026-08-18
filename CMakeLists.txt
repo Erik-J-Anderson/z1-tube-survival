@@ -2,30 +2,39 @@ cmake_minimum_required(VERSION 3.20)
 
 project(
     z1_tube_survival
-    VERSION 0.1.0
     LANGUAGES CXX
 )
 
 # ------------------------------------------------------------
-# C++ language settings
+# C++ standard
 # ------------------------------------------------------------
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Put all executables in build/bin.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
-# Useful for IDEs and code-analysis tools.
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
 
 # ------------------------------------------------------------
-# Core tube-survival library
+# MPI
 # ------------------------------------------------------------
 
-add_library(tube_survival_core STATIC
+find_package(MPI REQUIRED)
+
+
+# ============================================================
+# Main serial survival executable
+# ============================================================
+
+add_executable(
+    Parallel_Segment_Survival
+
+    core/Stephanou_Survival.cpp
+
+    core/Input_Parsers.cpp
+    core/Survival_Accumulator.cpp
+
     core/Geometry_Utils.cpp
     core/Parse_Z1_File.cpp
     core/Parser_Utils.cpp
@@ -37,93 +46,106 @@ add_library(tube_survival_core STATIC
 )
 
 target_include_directories(
-    tube_survival_core
-    PUBLIC
+    Parallel_Segment_Survival
+    PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
 
+
+
+
+
+# ============================================================
+# MPI communications smoke test
+# ============================================================
+
+add_executable(
+    MPI_Comms_Smoke_Test
+
+    tests/MPI_Comms_Smoke_Test.cpp
+    core/MPI_Comms.cpp
+)
+
+target_include_directories(
+    MPI_Comms_Smoke_Test
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)
+
+target_link_libraries(
+    MPI_Comms_Smoke_Test
+    PRIVATE
+        MPI::MPI_CXX
+)
+
+
+add_executable(
+    Parallel_Segment_Survival_MPI
+
+    core/Stephanou_Survival_parallel.cpp
+
+    core/MPI_Comms.cpp
+    core/Input_Parsers.cpp
+    core/Survival_Accumulator.cpp
+
+    core/Geometry_Utils.cpp
+    core/Parse_Z1_File.cpp
+    core/Parser_Utils.cpp
+    core/Primitive_Path_Trajectory.cpp
+    core/Survival_IO.cpp
+    core/Trajectory_Time.cpp
+    core/Tube_Survival.cpp
+)
+
+target_include_directories(
+    Parallel_Segment_Survival_MPI
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)
+
+target_link_libraries(
+    Parallel_Segment_Survival_MPI
+    PRIVATE
+        MPI::MPI_CXX
+)
+
+# ------------------------------------------------------------
+# Compiler warnings
+# ------------------------------------------------------------
+
+
+
+
 if(MSVC)
+
     target_compile_options(
-        tube_survival_core
+        Parallel_Segment_Survival
         PRIVATE
             /W4
     )
-else()
+
     target_compile_options(
-        tube_survival_core
+        MPI_Comms_Smoke_Test
+        PRIVATE
+            /W4
+    )
+
+else()
+
+    target_compile_options(
+        Parallel_Segment_Survival
         PRIVATE
             -Wall
             -Wextra
             -Wpedantic
     )
-endif()
 
-
-# ------------------------------------------------------------
-# Main executable
-# ------------------------------------------------------------
-
-add_executable(
-    Parallel_Segment_Survival
-    core/Parallel_Segment_Survival.cpp
-)
-
-target_link_libraries(
-    Parallel_Segment_Survival
-    PRIVATE
-        tube_survival_core
-)
-
-
-# ------------------------------------------------------------
-# Regression / smoke tests
-# ------------------------------------------------------------
-
-include(CTest)
-
-if(BUILD_TESTING)
-
-    add_executable(
-        affine_correction_smoke_test
-        tests/Affine_Correction_Smoke_Test.cpp
-    )
-    target_link_libraries(
-        affine_correction_smoke_test
+    target_compile_options(
+        MPI_Comms_Smoke_Test
         PRIVATE
-            tube_survival_core
-    )
-    add_test(
-        NAME affine_correction_smoke_test
-        COMMAND affine_correction_smoke_test
-    )
-
-    add_executable(
-        affine_time_origin_smoke_test
-        tests/Affine_Time_Origin_Smoke_Test.cpp
-    )
-    target_link_libraries(
-        affine_time_origin_smoke_test
-        PRIVATE
-            tube_survival_core
-    )
-    add_test(
-        NAME affine_time_origin_smoke_test
-        COMMAND affine_time_origin_smoke_test
-    )
-
-    add_executable(
-        history_dependent_escape_smoke_test
-        tests/History_Dependent_Escape_Smoke_Test.cpp
-    )
-    target_link_libraries(
-        history_dependent_escape_smoke_test
-        PRIVATE
-            tube_survival_core
-    )
-    add_test(
-        NAME history_dependent_escape_smoke_test
-        COMMAND history_dependent_escape_smoke_test
+            -Wall
+            -Wextra
+            -Wpedantic
     )
 
 endif()
-

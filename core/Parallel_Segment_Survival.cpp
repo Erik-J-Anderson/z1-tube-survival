@@ -8,8 +8,27 @@ int main(int argc, char* argv[])
 {
     // MPI_Init(&argc, &argv); will be added when the MPI orchestration
     // and chain distribution strategy are implemented.
+    if (argc != 5)
+    {
+        std::cerr
+            << "Usage:\n"
+            << "  Serial_Smoke_Test_Deforming_Box "
+            << "<Z1+SP.dat> "
+            << "<expected_Lz_center> "
+            << "<expected_amplitude> "
+            << "<tolerance>\n\n"
+            << "Example:\n"
+            << "  ./Serial_Smoke_Test_Deforming_Box "
+            << "Z1+SP.dat 76.1024 7.6 0.2\n";
 
+        return 1;
+    }
+
+    const str
     // 1. Parse Z1+ geometry.
+	
+	PrimitivePathTrajectory parsed_trajectory = parse_z1_file(
+
 
     // 2. Assign the trajectory time axis.
 

@@ -1,233 +1,49 @@
-#include "Geometry_Utils.hpp"
+#include "Input_Parsers.hpp"
 #include "Parse_Z1_File.hpp"
+#include "Survival_Accumulator.hpp"
 #include "Survival_IO.hpp"
 #include "Trajectory_Time.hpp"
 #include "Tube_Survival.hpp"
 
-#include <algorithm>
 #include <cstddef>
-#include <cstdint>
+#include <exception>
 #include <iostream>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 
-// ------------------------------------------------------------
-// Parse "3.0,5.0,7.0" -> vector<double>
-// ------------------------------------------------------------
-std::vector<double> ParseDoubleList(const std::string& input)
-{
-    std::vector<double> values;
-
-    std::stringstream stream(input);
-    std::string token;
-
-    while (std::getline(stream, token, ','))
-    {
-        values.push_back(std::stod(token));
-    }
-
-    return values;
-}
-
-
-// ------------------------------------------------------------
-// Parse "20.6,20.6,39.2" -> Vec3
-// ------------------------------------------------------------
-Vec3 ParseVec3(const std::string& input)
-{
-    const std::vector<double> values =
-        ParseDoubleList(input);
-
-    if (values.size() != 3)
-    {
-        throw std::invalid_argument(
-            "Box center must contain exactly three values: x,y,z"
-        );
-    }
-
-    return Vec3{
-        values[0],
-        values[1],
-        values[2]
-    };
-}
-
-
-// ------------------------------------------------------------
-// Reconstruct each box origin from a fixed physical box center.
-//
-// center = origin + H * (1/2, 1/2, 1/2)
-// ------------------------------------------------------------
-void SetFixedBoxCenter(
-    std::vector<Box>& frame_boxes,
-    const Vec3& center)
-{
-    const Vec3 fractional_center{
-        0.5,
-        0.5,
-        0.5
-    };
-
-    for (Box& box : frame_boxes)
-    {
-        const Vec3 half_box =
-            geometry::Multiply(
-                box.matrix,
-                fractional_center
-            );
-
-        box.origin = Vec3{
-            center.x - half_box.x,
-            center.y - half_box.y,
-            center.z - half_box.z
-        };
-    }
-}
-
-
-// ------------------------------------------------------------
-// Initialize an ensemble accumulator from one chain's result.
-// ------------------------------------------------------------
-void InitializeAccumulator(
-    SegmentSurvivalFunction& accumulator,
-    const SegmentSurvivalFunction& result)
-{
-    accumulator = result;
-
-    std::fill(
-        accumulator.survival.begin(),
-        accumulator.survival.end(),
-        0.0
-    );
-
-    std::fill(
-        accumulator.sample_counts.begin(),
-        accumulator.sample_counts.end(),
-        0
-    );
-}
-
-
-// ------------------------------------------------------------
-// Add one chain to the ensemble.
-//
-// Weight by the number of valid time origins for each lag.
-// ------------------------------------------------------------
-void Accumulate(
-    SegmentSurvivalFunction& accumulator,
-    const SegmentSurvivalFunction& result)
-{
-    const std::size_t num_lags =
-        result.lag_times.size();
-
-    const std::size_t num_diameters =
-        result.tube_diameters.size();
-
-    for (std::size_t lag_index = 0;
-        lag_index < num_lags;
-        ++lag_index)
-    {
-        const std::uint64_t count =
-            result.sample_counts[lag_index];
-
-        accumulator.sample_counts[lag_index] += count;
-
-        for (std::size_t d = 0;
-            d < num_diameters;
-            ++d)
-        {
-            for (std::size_t s = 0;
-                s < NUM_SAMPLE_POINTS;
-                ++s)
-            {
-                const std::size_t index =
-                    d * num_lags * NUM_SAMPLE_POINTS
-                    + lag_index * NUM_SAMPLE_POINTS
-                    + s;
-
-                accumulator.survival[index] +=
-                    result.survival[index]
-                    * static_cast<double>(count);
-            }
-        }
-    }
-}
-
-
-// ------------------------------------------------------------
-// Convert accumulated counts back into ensemble probabilities.
-// ------------------------------------------------------------
-void FinalizeAccumulator(
-    SegmentSurvivalFunction& accumulator)
-{
-    const std::size_t num_lags =
-        accumulator.lag_times.size();
-
-    const std::size_t num_diameters =
-        accumulator.tube_diameters.size();
-
-    for (std::size_t lag_index = 0;
-        lag_index < num_lags;
-        ++lag_index)
-    {
-        const std::uint64_t count =
-            accumulator.sample_counts[lag_index];
-
-        if (count == 0) {
-            continue;
-        }
-
-        for (std::size_t d = 0;
-            d < num_diameters;
-            ++d)
-        {
-            for (std::size_t s = 0;
-                s < NUM_SAMPLE_POINTS;
-                ++s)
-            {
-                const std::size_t index =
-                    d * num_lags * NUM_SAMPLE_POINTS
-                    + lag_index * NUM_SAMPLE_POINTS
-                    + s;
-
-                accumulator.survival[index] /=
-                    static_cast<double>(count);
-            }
-        }
-    }
-}
-
-
 int main(int argc, char* argv[])
 {
-    if (argc != 5)
-    {
-        std::cerr
-            << "Usage:\n"
-            << "  Parallel_Segment_Survival "
-            << "<Z1+SP.dat> "
-            << "<tube_diameters> "
-            << "<box_center_x,y,z> "
-            << "<output_prefix>\n\n"
-
-            << "Example:\n"
-            << "  Parallel_Segment_Survival "
-            << "Z1+SP.dat "
-            << "\"3.0,5.0,7.0,9.0\" "
-            << "\"20.6116,20.6103,39.226586\" "
-            << "\"AMP_7.6_FREQ_1750_TRIAL_1\"\n";
-
-        return 1;
-    }
-
     try
     {
-        // --------------------------------------------------------
+        // ------------------------------------------------------------
         // Command-line arguments
-        // --------------------------------------------------------
+        //
+        // argv[1] : Z1+SP.dat
+        // argv[2] : comma-separated tube diameters
+        // argv[3] : box center x,y,z
+        // argv[4] : output prefix
+        // ------------------------------------------------------------
+        if (argc != 5)
+        {
+            std::cerr
+                << "Usage:\n"
+                << "  " << argv[0]
+                << " <Z1+SP.dat>"
+                << " <tube_diameters>"
+                << " <box_center_x,y,z>"
+                << " <output_prefix>\n\n"
+                << "Example:\n"
+                << "  " << argv[0]
+                << " Z1+SP.dat"
+                << " \"5.0,7.0,9.0,9.2,9.4\""
+                << " \"20.6116,20.6103,39.226586\""
+                << " AMP_7.6_FREQ_1750_TRIAL_1\n";
+
+            return 1;
+        }
+
 
         const std::string z1_file =
             argv[1];
@@ -242,43 +58,60 @@ int main(int argc, char* argv[])
             argv[4];
 
 
-        // --------------------------------------------------------
-        // Read Z1+ trajectory
-        // --------------------------------------------------------
+        if (tube_diameters.empty())
+        {
+            throw std::invalid_argument(
+                "At least one tube diameter must be specified."
+            );
+        }
+
+
+        // ------------------------------------------------------------
+        // Parse Z1+ trajectory.
+        // ------------------------------------------------------------
+        std::cout
+            << "Reading Z1+ trajectory...\n";
 
         PrimitivePathTrajectory parsed_trajectory =
             parse_z1_file(z1_file);
 
-        auto& chain_trajectories =
-            parsed_trajectory.chains;
 
-        auto& frame_boxes =
+        std::vector<Box>& frame_boxes =
             parsed_trajectory.frame_boxes;
 
-        const std::size_t num_frames =
-            frame_boxes.size();
+        std::vector<ChainTrajectory>& chain_trajectories =
+            parsed_trajectory.chains;
 
 
-        // --------------------------------------------------------
-        // Restore the physical origin of every deforming box
-        // --------------------------------------------------------
+        if (chain_trajectories.empty())
+        {
+            throw std::runtime_error(
+                "No chain trajectories were parsed."
+            );
+        }
 
+        if (frame_boxes.empty())
+        {
+            throw std::runtime_error(
+                "No frame boxes were parsed."
+            );
+        }
+
+
+        // ------------------------------------------------------------
+        // Reconstruct the physical box origin using the fixed
+        // simulation-box center supplied on the command line.
+        // ------------------------------------------------------------
         SetFixedBoxCenter(
             frame_boxes,
             box_center
         );
 
 
-        // --------------------------------------------------------
-        // Z1+ currently does not contain physical timestamps.
-        //
-        // Assign frame numbers:
-        //
-        //     0, 1, 2, 3, ...
-        //
-        // so lag_time in the output currently means frame lag.
-        // --------------------------------------------------------
-
+        // ------------------------------------------------------------
+        // For the current production interface, lag time is expressed
+        // in saved-frame units.
+        // ------------------------------------------------------------
         AssignUniformTimesteps(
             chain_trajectories,
             0,
@@ -286,13 +119,27 @@ int main(int argc, char* argv[])
         );
 
 
-        // --------------------------------------------------------
-        // Lag schedule
-        // --------------------------------------------------------
+        const std::size_t num_frames =
+            frame_boxes.size();
 
-        std::vector<std::size_t> lag_frames{
+
+        // ------------------------------------------------------------
+        // Lag schedule.
+        //
+        // Dense early sampling, followed by every 16 frames.
+        // ------------------------------------------------------------
+        std::vector<std::size_t> lag_frames;
+
+        const std::vector<std::size_t> early_lags{
             0, 1, 2, 4, 8, 16
         };
+
+        for (const std::size_t lag : early_lags)
+        {
+            if (lag < num_frames) {
+                lag_frames.push_back(lag);
+            }
+        }
 
         for (std::size_t lag = 32;
             lag < num_frames;
@@ -302,35 +149,39 @@ int main(int argc, char* argv[])
         }
 
 
-        // --------------------------------------------------------
-        // Enable affine correction
-        // --------------------------------------------------------
+        // ------------------------------------------------------------
+        // Affine-corrected calculations.
+        // ------------------------------------------------------------
+        SegmentSurvivalOptions options{};
 
-        const SegmentSurvivalOptions options{
-            .apply_affine_correction = true
-        };
+        options.apply_affine_correction = true;
 
 
-        // --------------------------------------------------------
-        // Ensemble accumulators
-        // --------------------------------------------------------
-
+        // ------------------------------------------------------------
+        // Ensemble accumulators.
+        // ------------------------------------------------------------
         SegmentSurvivalFunction ensemble_raw;
         SegmentSurvivalFunction ensemble_affine;
         SegmentSurvivalFunction ensemble_history;
         SegmentSurvivalFunction ensemble_permanent;
 
-        bool initialized = false;
+
+        bool raw_initialized = false;
+        bool affine_initialized = false;
+        bool history_initialized = false;
+        bool permanent_initialized = false;
 
 
-        // --------------------------------------------------------
-        // Analyze every chain
-        // --------------------------------------------------------
+        // ------------------------------------------------------------
+        // Process each chain.
+        // ------------------------------------------------------------
+        std::size_t chain_count = 0;
 
-        for (const ChainTrajectory& chain :
-            chain_trajectories)
+        for (const ChainTrajectory& chain : chain_trajectories)
         {
-            // Raw instantaneous survival
+            // --------------------------------------------------------
+            // Instantaneous raw survival.
+            // --------------------------------------------------------
             const SegmentSurvivalFunction raw =
                 ComputeSegmentSurvivalFunction(
                     chain,
@@ -339,7 +190,9 @@ int main(int argc, char* argv[])
                 );
 
 
-            // Affine-corrected instantaneous survival
+            // --------------------------------------------------------
+            // Instantaneous affine-corrected survival.
+            // --------------------------------------------------------
             const SegmentSurvivalFunction affine =
                 ComputeSegmentSurvivalFunction(
                     chain,
@@ -350,7 +203,12 @@ int main(int argc, char* argv[])
                 );
 
 
-            // Affine-corrected history-dependent survival
+            // --------------------------------------------------------
+            // History-dependent affine-corrected survival.
+            //
+            // false = use the valid time-origin cohort associated
+            // with each individual lag.
+            // --------------------------------------------------------
             const HistoryDependentSurvivalResult history =
                 ComputeHistoryDependentSurvivalFunction(
                     chain,
@@ -362,68 +220,117 @@ int main(int argc, char* argv[])
                 );
 
 
-            if (!initialized)
+            // --------------------------------------------------------
+            // Initialize accumulators from the first chain.
+            // --------------------------------------------------------
+            if (!raw_initialized)
             {
                 InitializeAccumulator(
                     ensemble_raw,
                     raw
                 );
 
+                raw_initialized = true;
+            }
+
+            if (!affine_initialized)
+            {
                 InitializeAccumulator(
                     ensemble_affine,
                     affine
                 );
 
+                affine_initialized = true;
+            }
+
+            if (!history_initialized)
+            {
                 InitializeAccumulator(
                     ensemble_history,
                     history.stephanou_survival
                 );
 
+                history_initialized = true;
+            }
+
+            if (!permanent_initialized)
+            {
                 InitializeAccumulator(
                     ensemble_permanent,
                     history.permanent_escape_survival
                 );
 
-                initialized = true;
+                permanent_initialized = true;
             }
 
 
-            Accumulate(
+            // --------------------------------------------------------
+            // Accumulate this chain into the ensemble.
+            // --------------------------------------------------------
+            AccumulateSegmentSurvival(
                 ensemble_raw,
                 raw
             );
 
-            Accumulate(
+            AccumulateSegmentSurvival(
                 ensemble_affine,
                 affine
             );
 
-            Accumulate(
+            AccumulateSegmentSurvival(
                 ensemble_history,
                 history.stephanou_survival
             );
 
-            Accumulate(
+            AccumulateSegmentSurvival(
                 ensemble_permanent,
                 history.permanent_escape_survival
             );
+
+
+            // --------------------------------------------------------
+            // Progress output.
+            // --------------------------------------------------------
+            ++chain_count;
+
+            if (chain_count == 1 ||
+                chain_count % 25 == 0 ||
+                chain_count == chain_trajectories.size())
+            {
+                std::cout
+                    << "Finished Chain "
+                    << chain_count
+                    << " / "
+                    << chain_trajectories.size()
+                    << std::endl;
+            }
         }
 
 
-        // --------------------------------------------------------
-        // Finish ensemble averaging
-        // --------------------------------------------------------
+        // ------------------------------------------------------------
+        // Convert weighted accumulated counts into ensemble averages.
+        // ------------------------------------------------------------
+        FinalizeAccumulator(
+            ensemble_raw
+        );
 
-        FinalizeAccumulator(ensemble_raw);
-        FinalizeAccumulator(ensemble_affine);
-        FinalizeAccumulator(ensemble_history);
-        FinalizeAccumulator(ensemble_permanent);
+        FinalizeAccumulator(
+            ensemble_affine
+        );
+
+        FinalizeAccumulator(
+            ensemble_history
+        );
+
+        FinalizeAccumulator(
+            ensemble_permanent
+        );
 
 
-        // --------------------------------------------------------
-        // Convert contour-resolved survival into tube survival
-        // --------------------------------------------------------
-
+        // ------------------------------------------------------------
+        // Integrate segment survival along the contour to obtain
+        // tube survival.
+        // ------------------------------------------------------------
         const TubeSurvivalFunction tube_raw =
             ComputeTubeSurvivalFunction(
                 ensemble_raw
@@ -445,10 +352,9 @@ int main(int argc, char* argv[])
             );
 
 
-        // --------------------------------------------------------
-        // Write output
-        // --------------------------------------------------------
-
+        // ------------------------------------------------------------
+        // Write segment-survival output.
+        // ------------------------------------------------------------
         WriteSegmentSurvivalFunction(
             ensemble_raw,
             output_prefix + "_segment_raw.csv"
@@ -470,6 +376,9 @@ int main(int argc, char* argv[])
         );
 
 
+        // ------------------------------------------------------------
+        // Write tube-survival output.
+        // ------------------------------------------------------------
         WriteTubeSurvivalFunction(
             tube_raw,
             output_prefix + "_tube_raw.csv"
@@ -492,20 +401,14 @@ int main(int argc, char* argv[])
 
 
         std::cout
-            << "Analyzed "
-            << chain_trajectories.size()
-            << " chains.\n"
-            << "Wrote results with prefix: "
-            << output_prefix
-            << '\n';
+            << "Survival analysis complete.\n";
 
         return 0;
     }
-
     catch (const std::exception& error)
     {
         std::cerr
-            << "ERROR: "
+            << "Error: "
             << error.what()
             << '\n';
 
