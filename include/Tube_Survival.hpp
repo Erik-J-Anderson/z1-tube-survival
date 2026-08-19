@@ -159,7 +159,8 @@ HistoryDependentSurvivalResult ComputeHistoryDependentSurvivalFunction(
     const std::vector<std::size_t>& lag_frames,
     const std::vector<double>& tube_diameters,
     const SegmentSurvivalOptions& options = {},
-    bool use_common_origin_cohort = false
+    bool use_common_origin_cohort = false,
+    bool compute_reference_to_future = true
 );
 
 

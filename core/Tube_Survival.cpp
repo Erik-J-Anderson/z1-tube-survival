@@ -576,7 +576,8 @@ HistoryDependentSurvivalResult ComputeHistoryDependentSurvivalFunction(
     const std::vector<std::size_t>& lag_frames,
     const std::vector<double>& tube_diameters,
     const SegmentSurvivalOptions& options,
-    bool use_common_origin_cohort
+    bool use_common_origin_cohort,
+    bool compute_reference_to_future
 )
 {
     const std::size_t num_frames =
@@ -862,6 +863,8 @@ HistoryDependentSurvivalResult ComputeHistoryDependentSurvivalFunction(
             //
             //   d_RF(s,t) = distance(r_reference(s), P_future)
             // --------------------------------------------------------
+            //
+            if (compute_reference_to_future) {
             for (std::size_t segment_index = 0;
                 segment_index < NUM_SAMPLE_POINTS;
                 ++segment_index)
@@ -872,6 +875,8 @@ HistoryDependentSurvivalResult ComputeHistoryDependentSurvivalFunction(
                         future_in_reference_box
                     );
             }
+
+	    }
 
             // --------------------------------------------------------
             // Directed geometry B:
@@ -973,7 +978,7 @@ HistoryDependentSurvivalResult ComputeHistoryDependentSurvivalFunction(
                         NUM_SAMPLE_POINTS +
                         segment_index;
 
-                    if (distance_reference_to_future[segment_index] >=
+                    if (compute_reference_to_future && distance_reference_to_future[segment_index] >=
                         escape_distance)
                     {
                         escaped_reference_to_future[state_index] = 1;
@@ -1010,8 +1015,14 @@ HistoryDependentSurvivalResult ComputeHistoryDependentSurvivalFunction(
                             .sample_counts[lag_index];
                     };
 
+
+		if (compute_reference_to_future) 
+		{
                 increment_counts(result.reference_to_future);
-                increment_counts(result.future_to_reference);
+                }
+
+
+		increment_counts(result.future_to_reference);
 
                 ++result.longitudinal_survival
                     .sample_counts[lag_index];
@@ -1059,7 +1070,8 @@ HistoryDependentSurvivalResult ComputeHistoryDependentSurvivalFunction(
                             result.longitudinal_survival
                                 .survival[output_index] += 1.0;
                         }
-
+			if (compute_reference_to_future)
+			{
                         const bool rf_alive =
                             escaped_reference_to_future[
                                 state_index
@@ -1090,7 +1102,7 @@ HistoryDependentSurvivalResult ComputeHistoryDependentSurvivalFunction(
                                     .survival[output_index] += 1.0;
                             }
                         }
-
+			}
                         const bool fr_alive =
                             escaped_future_to_reference[
                                 state_index

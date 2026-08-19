@@ -117,43 +117,32 @@ namespace
     // ============================================================
 
     void CheckHistoryRelations(
-        const SegmentSurvivalFunction& affine,
-        const SegmentSurvivalFunction& history,
-        const SegmentSurvivalFunction& permanent)
-    {
-        if (affine.survival.size() != history.survival.size() ||
-            history.survival.size() != permanent.survival.size())
+    const SegmentSurvivalFunction& history,
+    const SegmentSurvivalFunction& permanent)
+	{
+    	if (history.survival.size() != permanent.survival.size())
+    	{
+        	throw std::runtime_error(
+            	"History relation check received incompatible arrays."
+        	);
+    	}	
+
+    constexpr double tolerance = 1.0e-12;
+
+    for (std::size_t i = 0;
+         i < history.survival.size();
+         ++i)
+    	{
+        if (history.survival[i] >
+            permanent.survival[i] + tolerance)
         {
             throw std::runtime_error(
-                "History relation check received incompatible arrays."
-            );
-        }
-
-        constexpr double tolerance = 1.0e-12;
-
-        for (std::size_t i = 0;
-            i < history.survival.size();
-            ++i)
-        {
-            if (history.survival[i] >
-                affine.survival[i] + tolerance)
-            {
-                throw std::runtime_error(
-                    "History-dependent survival exceeded affine "
-                    "instantaneous survival."
-                );
-            }
-
-            if (history.survival[i] >
-                permanent.survival[i] + tolerance)
-            {
-                throw std::runtime_error(
-                    "History-dependent survival exceeded "
-                    "permanent-escape survival."
-                );
-            }
-        }
-    }
+                "History-dependent survival exceeded "
+                "permanent-escape survival."
+            	);
+        	}
+ 	   }
+	} 
 
 
     // ============================================================
@@ -322,7 +311,7 @@ int main(
         {
             std::cerr
                 << "Usage:\n"
-                << "  Parallel_Segment_Survival "
+                << "  Parallel_Segment_Survival_MPI "
                 << "<Z1+SP.dat> "
                 << "<tube_diameters> "
                 << "<box_center_x,y,z> "
@@ -803,15 +792,16 @@ int main(
                     lag_frames,
                     tube_diameters,
                     affine_options,
-                    false
+                    false,
+		    false
                 );
 
 
             const SegmentSurvivalFunction& history =
-                history_result.reference_to_future.transverse_survival;
+                history_result.future_to_reference.transverse_survival;
 
             const SegmentSurvivalFunction& permanent =
-    		history_result.reference_to_future.permanent_escape_survival;
+    		history_result.future_to_reference.permanent_escape_survival;
 
 
 
@@ -1046,7 +1036,6 @@ int main(
 
 
             CheckHistoryRelations(
-                global_affine,
                 global_history,
                 global_permanent
             );
