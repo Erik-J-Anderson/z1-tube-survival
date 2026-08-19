@@ -247,7 +247,7 @@ int main(int argc, char* argv[])
             {
                 InitializeAccumulator(
                     ensemble_history,
-                    history.stephanou_survival
+                    history.reference_to_future.transverse_survival
                 );
 
                 history_initialized = true;
@@ -257,7 +257,7 @@ int main(int argc, char* argv[])
             {
                 InitializeAccumulator(
                     ensemble_permanent,
-                    history.permanent_escape_survival
+                    history.reference_to_future.permanent_escape_survival
                 );
 
                 permanent_initialized = true;
@@ -279,12 +279,12 @@ int main(int argc, char* argv[])
 
             AccumulateSegmentSurvival(
                 ensemble_history,
-                history.stephanou_survival
+                history.reference_to_future.transverse_survival
             );
 
             AccumulateSegmentSurvival(
                 ensemble_permanent,
-                history.permanent_escape_survival
+                history.reference_to_future.permanent_escape_survival
             );
 
 

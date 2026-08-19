@@ -808,11 +808,11 @@ int main(
 
 
             const SegmentSurvivalFunction& history =
-                history_result.stephanou_survival;
+                history_result.reference_to_future.transverse_survival;
 
             const SegmentSurvivalFunction& permanent =
-                history_result
-                .permanent_escape_survival;
+    		history_result.reference_to_future.permanent_escape_survival;
+
 
 
             CheckMatchingCohorts(

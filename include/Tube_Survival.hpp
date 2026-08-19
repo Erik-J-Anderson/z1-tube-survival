@@ -12,7 +12,7 @@ struct SegmentSurvivalOptions
 {
     // When true, each future primitive path is pulled back into the
     // box of its own time origin before distances are evaluated.
-    bool apply_affine_correction{false};
+    bool apply_affine_correction{ false };
 };
 
 
@@ -46,29 +46,50 @@ struct TubeSurvivalFunction
 };
 
 
-// History-dependent tube survival.
+// History-dependent survival for one directed distance definition.
 //
-// stephanou_survival:
-//   A contour sample contributes 1 only when
+// transverse_survival:
+//   History-gated inner-tube occupancy:
 //       distance <= a/2
-//   AND it has never previously reached
+//   provided the same contour sample has never previously reached
 //       distance >= a.
-//   Motion through a/2 < distance < a is reversible: the sample may
-//   return to the inner tube until the outer escape boundary is reached.
 //
 // permanent_escape_survival:
-//   Pure absorbing survival of the outer escape boundary:
+//   Pure absorbing survival of the outer transverse boundary:
 //       1 while max_history(distance) < a,
 //       0 forever after distance >= a.
 //
-// Both fields use the same [diameter][lag][s] layout as
-// SegmentSurvivalFunction.
-struct HistoryDependentSurvivalResult
+// full_survival:
+//   transverse_survival with the additional longitudinal/end-retraction
+//   first-passage gate applied.
+//
+// All fields use the standard [diameter][lag][s] layout.
+struct DirectionalHistorySurvival
 {
-    SegmentSurvivalFunction stephanou_survival;
+    SegmentSurvivalFunction transverse_survival;
     SegmentSurvivalFunction permanent_escape_survival;
+    SegmentSurvivalFunction full_survival;
 };
 
+
+// Compare both directed geometric definitions under the same time origins,
+// affine correction, transverse history gate, and longitudinal first-passage
+// history:
+//
+// reference_to_future:
+//     d_RF(s,t) = distance(r_reference(s), P_future)
+//
+// future_to_reference:
+//     d_FR(s,t) = distance(r_future(s), P_reference)
+//
+// longitudinal_survival contains only the common end-retraction gate and is
+// useful for diagnosing whether longitudinal escape dominates either result.
+struct HistoryDependentSurvivalResult
+{
+    DirectionalHistorySurvival reference_to_future;
+    DirectionalHistorySurvival future_to_reference;
+    SegmentSurvivalFunction longitudinal_survival;
+};
 
 
 double ComputeDistanceToPolyline(
@@ -99,29 +120,39 @@ SegmentSurvivalFunction ComputeSegmentSurvivalFunction(
 );
 
 
-// History-dependent affine-aware survival.
+// History-dependent affine-aware comparison.
 //
-// Every saved intermediate frame is examined, not only the requested
-// output lags.  For each time origin, contour sample, and tube diameter:
+// Every saved intermediate frame is examined, not only requested output lags.
+//
+// Two directed distances are evaluated on the same normalized contour grid:
+//
+//   reference -> future:
+//       distance from the reference sample r_reference(s) to the future PP.
+//
+//   future -> reference:
+//       distance from the future sample r_future(s) to the reference PP.
+//
+// For either directed distance:
 //
 //   distance <= a/2
-//       inside the inner tube.
+//       currently inside the inner tube.
 //
 //   a/2 < distance < a
 //       temporarily outside the inner tube; recovery is allowed.
 //
 //   distance >= a
-//       permanently escaped for that time origin.  It can never
-//       contribute to stephanou_survival again.
+//       permanently escaped transversely for that time origin.
 //
-// If use_common_origin_cohort is false (the default), each requested lag
-// uses every time origin valid for that lag, matching the ordinary
-// instantaneous survival estimator.
+// Longitudinal escape is tracked independently by projecting each future
+// chain end onto the reference primitive path and retaining the running
+// maximum inward penetration depth from each end.  full_survival requires
+// both the directed transverse criterion and the longitudinal gate.
 //
-// If true, only origins valid through the largest requested lag are used
-// for every lag.  This is useful for strict absorbing-survival regression
-// tests and first-passage analysis because the cohort is identical at
-// all lags.
+// If use_common_origin_cohort is false (default), each requested lag uses
+// every time origin valid for that lag.  If true, every lag uses only time
+// origins valid through the largest requested lag.
+
+
 HistoryDependentSurvivalResult ComputeHistoryDependentSurvivalFunction(
     const ChainTrajectory& chain_trajectory,
     std::span<const Box> frame_boxes,

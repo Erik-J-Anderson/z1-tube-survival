@@ -126,9 +126,9 @@ int main()
              lag_index < lags.size();
              ++lag_index)
         {
-            if (history.stephanou_survival
+            if (history.reference_to_future.transverse_survival
                     .sample_counts[lag_index] != 1 ||
-                history.permanent_escape_survival
+                history.reference_to_future.permanent_escape_survival
                     .sample_counts[lag_index] != 1)
             {
                 throw std::runtime_error(
@@ -146,14 +146,14 @@ int main()
                     s;
 
                 RequireNear(
-                    history.stephanou_survival
+                    history.reference_to_future.transverse_survival
                         .survival[index],
                     expected_stephanou[lag_index],
                     "Stephanou history mismatch"
                 );
 
                 RequireNear(
-                    history.permanent_escape_survival
+                    history.reference_to_future.permanent_escape_survival
                         .survival[index],
                     expected_permanent[lag_index],
                     "Permanent-escape history mismatch"
@@ -163,12 +163,12 @@ int main()
 
         const TubeSurvivalFunction stephanou_tube =
             ComputeTubeSurvivalFunction(
-                history.stephanou_survival
+                history.reference_to_future.transverse_survival
             );
 
         const TubeSurvivalFunction permanent_tube =
             ComputeTubeSurvivalFunction(
-                history.permanent_escape_survival
+                history.reference_to_future.permanent_escape_survival
             );
 
         for (std::size_t lag_index = 0;
